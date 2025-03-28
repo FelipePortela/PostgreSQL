@@ -1,0 +1,81 @@
+-- Mata um processo
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE AND pid <> pg_backend_pid();
+AND pid = xx;
+
+-- Mata as sessões idle há mais de 15 minutos
+select pg_terminate_backend(pid)
+from pg_stat_activity
+where pid <> pg_backend_pid()
+and state in ('idle', 'idle in transaction', 'idle in transaction (aborted)', 'disabled')
+and state_change < current_timestamp - interval '1' minute
+and usename != 'rdsadmin';
+
+--Mata todos os processos de um database (com exceção da conexão atual)
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname = 'integration'
+AND pid <> pg_backend_pid();
+
+--Mata todos os processos de usuários de serviço ou um específico
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE usename in ('chade01','srvc.inv-tesouro-direto.prd')
+-- AND usename like 'srvc%'
+AND pid <> pg_backend_pid();
+
+--Mata todos os processos kafka para liberar memória na RDS devid a um bug postgres já conhecido
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE usename like '%kafka%'
+AND pid <> pg_backend_pid();
+
+--Mata todos os processos de uma aplication
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE usename in ('chade01','srvc.inv-tesouro-direto.prd')
+AND pid <> pg_backend_pid();
+and application_name = 'PostgreSQL JDBC Driver'
+
+--Mata todos os processos zabbix (pe: zabbix é quem roda o job diário de manutenção)
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE usename in ('zabbix')
+AND pid <> pg_backend_pid()
+
+--Conexões com mais de 1 dia e application_name = 'PostgreSQL JDBC Driver'
+--Se quiser matar estas conexões, só descomentar a terceira linha do select
+SELECT pid, usename, backend_start,
+(extract(epoch from age(now(),backend_start)) / 86400)::int as dias,
+application_name, query
+--,pg_terminate_backend(pid)
+from pg_stat_activity
+where pid <> pg_backend_pid() and
+(extract(epoch from age(now(),backend_start)) / 86400)::int >= 1 and
+usename not in ('rdsadmin', 'postgres','rdsproxyadmin','srvc.tsdatadog.prd') and
+application_name = 'PostgreSQL JDBC Driver'
+order by  (now() - backend_start) desc
+
+--Numero de conexoes por usuario
+SELECT count(*) qnt_conexoes, usename
+from pg_stat_activity where
+usename not in ('rdsadmin', 'postgres')
+group by usename order by qnt_conexoes DESC;
+--Numero de conexoes por application_name
+SELECT count(*) qnt_conexoes, application_name
+from pg_stat_activity where
+usename not in ('rdsadmin', 'postgres')
+group by application_name order by qnt_conexoes DESC;
+
+--Numero de conexoes por datname
+SELECT count(*) qnt_conexoes, datname
+from pg_stat_activity where
+usename not in ('rdsadmin', 'postgres')
+group by datname order by qnt_conexoes DESC;
+
+--Numero de conexoes por state
+SELECT count(*) qnt_conexoes, state
+from pg_stat_activity where
+usename not in ('rdsadmin', 'postgres')
+group by state order by qnt_conexoes DESC;
