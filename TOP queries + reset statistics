@@ -1,0 +1,29 @@
+-- Para fazer o reset das estatísticas de trace das capturas das queries SQL
+-- Executar no database postgres
+-- Este reset é feito hoje de forma automática em todas as RDS postgres/aurora postgres no dia 28 por um jelo job de otimização executado nas RDS
+SELECT pg_stat_statements_reset();
+
+-- Para fazer o reset das estatísticas das tabelas (full scan e uso dos indices)
+-- Executar em cada databases de usuario que existe na RDS
+SELECT pg_stat_reset();
+
+-- Query para consultar as queries que foram executadas na RDS capturadas pelo trace (extention pg_statment)
+select distinct userid::regrole, db.datname, mean_exec_time::decimal(20,3), calls, rows, query
+from pg_stat_statements pg inner join pg_database db on pg.dbid = db.oid
+where db.datname not in ('postgres', 'rdsadmin') and query not like '/*pga4dash*/%'
+and query not like '%pg_%' and query not like '%dblink%'
+and query not like '%expurgo%' and query not like '%analyze%' and query not like '%ANALYZE%'
+and query not like '%EXPLAIN%' and query not like '%PREPARE%'
+and query not like 'BEGIN%' and query not like 'ROLLBACK%' and query not like 'COMMIT%'
+and query not like 'SELECT $1%' and query not like 'SET %'
+and query not like 'SELECT plan%'
+and cast(userid::regrole as varchar) not like '%zabbix%'
+and cast(userid::regrole as varchar) not like '%datadog%'
+--and calls > 2000 and mean_exec_time > 1000
+-- and upper(query) like 'SELECT%' and cast(userid::regrole as varchar) like '%srv%' and cast(userid::regrole as varchar) not like '%datadog%'
+-- and lower(query) like '%table minusculo%'
+-- and cast(userid::regrole as varchar) = 'srvc.inter-consulta-finalidade.prd'
+-- and cast(userid::regrole as varchar) like '%BI%'
+-- and db.datname = 'database_name'
+order by mean_exec_time desc limit 50;
+-- order by calls desc limit 50;
